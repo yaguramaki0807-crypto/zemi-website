@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>太陽光発電分析</title>
+</head>
+<body>
+
+<p>太陽光発電量分析</p>
+
+<form action="/upload" method="post" enctype="multipart/form-data">
+  <input type="file" name="image" required>
+  <button type="submit">送信</button>
+</form>
+
+<hr>
+
+<!-- 🔥 ここにAI結果表示 -->
+{% if result %}
+<h3>解析結果</h3>
+<pre style="white-space: pre-wrap;">{{ result }}</pre>
+{% endif %}
+
+</body>
+</html>
