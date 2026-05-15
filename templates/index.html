@@ -58,12 +58,23 @@
   <button type="submit">送信</button>
 </form>
 
+<p id="loading" style="display:none; text-align:center;">
+  解析中...
+</p>
+
 <hr>
 
 {% if result %}
 <h3>解析結果</h3>
 <pre>{{ result }}</pre>
 {% endif %}
+
+<script>
+document.querySelector("form").addEventListener("submit", function() {
+    document.getElementById("loading").style.display = "block";
+});
+</script>
+
 
 </body>
 </html>
