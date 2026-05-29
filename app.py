@@ -1,13 +1,18 @@
+from dotenv import load_dotenv
 import os
 import requests
 from flask import Flask, request, render_template
 from google import genai
+import base64
+import json
+from datetime import datetime
+
 
 app = Flask(__name__)
-
+load_dotenv()
 
 client = genai.Client(
-    api_key=os.environ.get("GEMINI_API_KEY")
+    api_key=os.getenv("GEMINI_API_KEY")
 )
 
 # 画像解析用
@@ -35,6 +40,8 @@ def upload():
     image = request.files["image"]
     img_bytes = image.read()
 
+    img_base64 = base64.b64encode(img_bytes).decode("utf-8")
+
     # =========================
     # ① Geminiで画像解析
     # =========================
@@ -56,37 +63,47 @@ def upload():
     # =========================
     # ② 仮の天気データ
     # =========================
-    url = "https://api.open-meteo.com/v1/forecast"
+    # =========================
+# ② 気象庁データ取得（1日キャッシュ）
+# =========================
 
-    params = {
-    "latitude": 35.5011,   # 鳥取市
-    "longitude": 134.2351,
-    "daily": "weathercode",
-    "timezone": "Asia/Tokyo"
-}
+    weather_file = "weather.json"
 
-    weather_response = requests.get(
-    url,
-    params=params,
-    timeout=5
-)
+    today = datetime.now().strftime("%Y-%m-%d")
 
-    weather_data = weather_response.json()
+    weather = None
 
-    weather_code = weather_data["daily"]["weathercode"][0]
+# 保存済み確認
+    if os.path.exists(weather_file):
 
-    # 天気コード変換
-    weather_map = {
-    0: "快晴",
-    1: "晴れ",
-    2: "曇り",
-    3: "曇り",
-    61: "雨",
-    63: "強い雨",
-    80: "にわか雨"
-}
+        with open(weather_file, "r", encoding="utf-8") as f:
+            saved_data = json.load(f)
 
-    weather = weather_map.get(weather_code, "不明")
+    # 今日のデータなら再利用
+        if saved_data["date"] == today:
+            weather = saved_data["weather"]
+
+# 今日のデータが無いならAPI取得
+    if weather is None:
+
+        url = "https://www.jma.go.jp/bosai/forecast/data/forecast/310000.json"
+
+        response = requests.get(url, timeout=5)
+
+        data = response.json()
+
+        weather = data[0]["timeSeries"][0]["areas"][0]["weathers"][0]
+
+    # 保存
+        with open(weather_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "date": today,
+                    "weather": weather
+                },
+                f,
+                ensure_ascii=False
+            )
     # =========================
     # ③ 天気込みで再分析
     # =========================
@@ -103,7 +120,7 @@ def upload():
 4. 消費量
 5. 日付けと時間
 
-天気APIによって2026年の読み取られた日付の鳥取市の天気は
+天気APIによって読み取られた日付の鳥取市の天気は
 「{weather}」であると確認されました。
 以降は説明。
 太陽が多く出ているときは発電量が多くなる。すると余った電気を電力会社に売るという行為をおこなったり、蓄電量をためたりする。逆に太陽が出ていないとき（夜や雨、曇りの日など）の時は、
@@ -128,18 +145,30 @@ def upload():
 数値が読み取れませんでした。もう一度画像を送信してください。
 """
 
-    final_response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=analysis_prompt
-    )
+    try:
+
+        final_response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=analysis_prompt
+        )
+
+        result_text = final_response.text
+
+    except Exception as e:
+
+        print(e)
+
+        result_text = "現在AIサーバーが混雑しています。時間を置いて再度お試しください。"
 
     # =========================
     # ④ 結果表示
     # =========================
     return render_template(
-        "index.html",
-        result=final_response.text
-    )
+    "index.html",
+    result=result_text,
+    image_data=img_base64,
+    mime_type=image.mimetype
+)
 
 
 if __name__ == "__main__":

@@ -68,6 +68,14 @@
 <h3>解析結果</h3>
 <pre>{{ result }}</pre>
 {% endif %}
+{% if image_data %}
+<h3>解析画像</h3>
+
+<img
+  src="data:{{ mime_type }};base64,{{ image_data }}"
+  style="width:100%; border-radius:10px; margin-top:10px;"
+>
+{% endif %}
 
 <script>
 document.querySelector("form").addEventListener("submit", function() {
